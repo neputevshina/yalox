@@ -44,10 +44,10 @@ func apmain() {
 	expr :=
 		NewBinary(
 			NewUnary(
-				&Token{Type: tokenMinus, Lexeme: []byte{'-'}},
+				Token{Type: tokenMinus, Lexeme: []byte{'-'}},
 				NewLiteral(123),
 			),
-			&Token{Type: tokenStar, Lexeme: []byte{'*'}},
+			Token{Type: tokenStar, Lexeme: []byte{'*'}},
 			NewGrouping(
 				NewLiteral(45.67),
 			),
@@ -56,15 +56,15 @@ func apmain() {
 		NewGrouping(
 			NewBinary(
 				NewLiteral(1),
-				&Token{Type: tokenPlus, Lexeme: []byte{'+'}},
+				Token{Type: tokenPlus, Lexeme: []byte{'+'}},
 				NewLiteral(2),
 			),
 		),
-		&Token{Type: tokenStar, Lexeme: []byte{'*'}},
+		Token{Type: tokenStar, Lexeme: []byte{'*'}},
 		NewGrouping(
 			NewBinary(
 				NewLiteral(4),
-				&Token{Type: tokenMinus, Lexeme: []byte{'-'}},
+				Token{Type: tokenMinus, Lexeme: []byte{'-'}},
 				NewLiteral(3),
 			),
 		),

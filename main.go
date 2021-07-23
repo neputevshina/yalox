@@ -14,16 +14,16 @@ import (
 var hadError bool
 
 func main() {
-	apmain()
-	// args := os.Args[1:]
-	// if len(args) > 1 {
-	// 	fmt.Fprintln(os.Stderr, `Usage: jlox <script>`)
-	// 	os.Exit(64)
-	// } else if len(args) == 1 {
-	// 	runfile(os.Args[0])
-	// } else {
-	// 	runprompt()
-	// }
+	// apmain()
+	args := os.Args[1:]
+	if len(args) > 1 {
+		fmt.Fprintln(os.Stderr, `Usage: jlox <script>`)
+		os.Exit(64)
+	} else if len(args) == 1 {
+		runfile(os.Args[0])
+	} else {
+		runprompt()
+	}
 }
 
 func runfile(path string) {
@@ -57,17 +57,28 @@ func runprompt() {
 func run(source []byte) {
 	scanner := NewScanner(source)
 	tokens := scanner.ScanTokens()
+	parser := NewParser(tokens)
 
-	for _, t := range tokens {
-		fmt.Println(t)
+	e := parser.Parse()
+	if hadError {
+		return
 	}
+	fmt.Println((&AstPrinter{}).Print(e))
 }
 
 func loxerr(line int, message string) {
 	report(line, "", message)
 }
 
+func loxparseerr(tok Token, message string) {
+	if tok.Type == tokenEOF {
+		report(tok.Line, " at end", message)
+	} else {
+		report(tok.Line, " at `"+tok.String()+"`", message)
+	}
+}
+
 func report(line int, where string, message string) {
-	fmt.Fprintf(os.Stderr, "%s on line %d: %s", where, line, message)
+	fmt.Fprintf(os.Stderr, "%s on line %d: %s\n", where, line, message)
 	hadError = true
 }
