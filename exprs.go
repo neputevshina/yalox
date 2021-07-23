@@ -1,83 +1,79 @@
 package main
 
-// Binary
-func Binary(left Expr, op *Token, right Expr) Expr {
-	return &binary{
+func NewBinary(left Expr, op *Token, right Expr) Expr {
+	return &Binary{
 		left:  left,
 		op:    op,
 		right: right,
 	}
 }
 
-type binary struct {
+type Binary struct {
 	left  Expr
 	op    *Token
 	right Expr
 }
 
-func (b *binary) Left() Expr  { return nil }
-func (b *binary) Op() *Token  { return &Token{} }
-func (b *binary) Right() Expr { return nil }
+func (b *Binary) Left() Expr  { return nil }
+func (b *Binary) Op() *Token  { return &Token{} }
+func (b *Binary) Right() Expr { return nil }
 
-func (b *binary) Accept(vis ExprVisitor) interface{} {
+func (b *Binary) Accept(vis ExprVisitor) interface{} {
 	return vis.Visit(b)
 }
 
-// Grouping
-func Grouping(expr Expr) Expr {
-	return &grouping{
+func NewGrouping(expr Expr) Expr {
+	return &Grouping{
 		expr: expr,
 	}
 }
 
-type grouping struct {
+type Grouping struct {
 	expr Expr
 }
 
-func (g *grouping) Left() Expr  { return nil }
-func (g *grouping) Op() *Token  { return &Token{} }
-func (g *grouping) Right() Expr { return nil }
+func (g *Grouping) Left() Expr  { return nil }
+func (g *Grouping) Op() *Token  { return &Token{} }
+func (g *Grouping) Right() Expr { return nil }
 
-func (g *grouping) Accept(vis ExprVisitor) interface{} {
+func (g *Grouping) Accept(vis ExprVisitor) interface{} {
 	return vis.Visit(g)
 }
 
-// Literal
-func Literal(val interface{}) Expr {
-	return &literal{
+func NewLiteral(val interface{}) Expr {
+	return &Literal{
 		val: val,
 	}
 }
 
-type literal struct {
+type Literal struct {
 	val interface{}
 }
 
-func (l *literal) Left() Expr  { return nil }
-func (l *literal) Op() *Token  { return &Token{} }
-func (l *literal) Right() Expr { return nil }
+func (l *Literal) Left() Expr  { return nil }
+func (l *Literal) Op() *Token  { return &Token{} }
+func (l *Literal) Right() Expr { return nil }
 
-func (l *literal) Accept(vis ExprVisitor) interface{} {
+func (l *Literal) Accept(vis ExprVisitor) interface{} {
 	return vis.Visit(l)
 }
 
-// Unary
-func Unary(op *Token, right Expr) Expr {
-	return &unary{
+func NewUnary(op *Token, right Expr) Expr {
+	return &Unary{
 		op:    op,
 		right: right,
 	}
 }
 
-type unary struct {
+type Unary struct {
 	op    *Token
 	right Expr
 }
 
-func (u *unary) Left() Expr  { return nil }
-func (u *unary) Op() *Token  { return &Token{} }
-func (u *unary) Right() Expr { return nil }
+func (u *Unary) Left() Expr  { return nil }
+func (u *Unary) Op() *Token  { return &Token{} }
+func (u *Unary) Right() Expr { return nil }
 
-func (u *unary) Accept(vis ExprVisitor) interface{} {
+func (u *Unary) Accept(vis ExprVisitor) interface{} {
 	return vis.Visit(u)
 }

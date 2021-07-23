@@ -45,23 +45,22 @@ type %s struct {
 }
 	`
 	fmt.Fprintf(w, templ,
-		strings.ToLower(name),
+		name,
 		strings.Join(fields, `;`),
 	)
 }
 
 func defcons(w io.Writer, name string, fields []string) {
 	templ := `
-// %s
 func %s(%s) Expr {
 	return &%s{
 		%s	
 	}
 }
 	`
-	fmt.Fprintf(w, templ, name,
-		name, strings.Join(fields, ","),
-		strings.ToLower(name),
+	fmt.Fprintf(w, templ,
+		"New"+name, strings.Join(fields, ","),
+		name,
 		func() string {
 			s := ""
 			for _, v := range fields {
@@ -82,9 +81,9 @@ func (%c *%s) Right() Expr {return nil}
 `
 	lowname := strings.ToLower(name)
 	fmt.Fprintf(w, templ,
-		lowname[0], lowname,
-		lowname[0], lowname,
-		lowname[0], lowname,
+		lowname[0], name,
+		lowname[0], name,
+		lowname[0], name,
 	)
 }
 
@@ -104,7 +103,7 @@ func (%c *%s) Accept(vis ExprVisitor) interface{} {
 `
 	lowname := strings.ToLower(name)
 	fmt.Fprintf(w, templ,
-		lowname[0], lowname,
+		lowname[0], name,
 		//name,
 		lowname[0],
 	)

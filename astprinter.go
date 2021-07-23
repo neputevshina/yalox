@@ -2,8 +2,10 @@ package main
 
 import "fmt"
 
+// AstPrinter is an s-expression pretty printer
 type AstPrinter struct{}
 
+// Print converts an Expr to the s-expression representation of it.
 func (ap *AstPrinter) Print(e Expr) string {
 	return e.Accept(ap).(string)
 }
@@ -12,16 +14,16 @@ func (ap *AstPrinter) Print(e Expr) string {
 // Since Go does have type switches, we don't need to write visitors in their pure form.
 func (ap *AstPrinter) Visit(l interface{}) interface{} {
 	switch e := l.(type) {
-	case *binary:
+	case *Binary:
 		return parenth(e.op.Lexeme, e.left, e.right)
-	case *grouping:
+	case *Grouping:
 		return parenth([]byte(`group`), e.expr)
-	case *literal:
+	case *Literal:
 		if e.val == nil {
 			return nil
 		}
 		return fmt.Sprint(e.val)
-	case *unary:
+	case *Unary:
 		return parenth(e.op.Lexeme, e.right)
 	default:
 		return nil
@@ -40,14 +42,14 @@ func parenth(text []byte, es ...Expr) interface{} {
 
 func apmain() {
 	expr :=
-		Binary(
-			Unary(
+		NewBinary(
+			NewUnary(
 				&Token{Type: tokenMinus, Lexeme: []byte{'-'}},
-				Literal(123),
+				NewLiteral(123),
 			),
 			&Token{Type: tokenStar, Lexeme: []byte{'*'}},
-			Grouping(
-				Literal(45.67),
+			NewGrouping(
+				NewLiteral(45.67),
 			),
 		)
 	fmt.Println((&AstPrinter{}).Print(expr))
