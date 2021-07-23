@@ -8,10 +8,10 @@ import (
 )
 
 var definitions = map[string]string{
-	`Binary`:   `left Expr, op *Token, right Expr`,
+	`Binary`:   `left Expr, op Token, right Expr`,
 	`Grouping`: `expr Expr`,
 	`Literal`:  `val interface{}`,
-	`Unary`:    `op *Token, right Expr`,
+	`Unary`:    `op Token, right Expr`,
 }
 
 func main() {

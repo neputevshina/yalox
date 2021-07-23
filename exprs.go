@@ -1,6 +1,6 @@
 package main
 
-func NewBinary(left Expr, op *Token, right Expr) Expr {
+func NewBinary(left Expr, op Token, right Expr) Expr {
 	return &Binary{
 		left:  left,
 		op:    op,
@@ -10,7 +10,7 @@ func NewBinary(left Expr, op *Token, right Expr) Expr {
 
 type Binary struct {
 	left  Expr
-	op    *Token
+	op    Token
 	right Expr
 }
 
@@ -58,7 +58,7 @@ func (l *Literal) Accept(vis ExprVisitor) interface{} {
 	return vis.Visit(l)
 }
 
-func NewUnary(op *Token, right Expr) Expr {
+func NewUnary(op Token, right Expr) Expr {
 	return &Unary{
 		op:    op,
 		right: right,
@@ -66,7 +66,7 @@ func NewUnary(op *Token, right Expr) Expr {
 }
 
 type Unary struct {
-	op    *Token
+	op    Token
 	right Expr
 }
 
