@@ -24,7 +24,7 @@ func main() {
 
 func defast(where *os.File, iface string, types map[string]string) {
 	fmt.Fprintln(where, `package main`)
-	defvisi(where, types)
+	// defvisi(where, types)
 	for n, f := range types {
 		deftype(where, n, f)
 	}
@@ -88,24 +88,25 @@ func (%c *%s) Right() Expr {return nil}
 	)
 }
 
-func defvisi(w io.Writer, types map[string]string) {
-	fmt.Fprintln(w, `type ExprVisitor interface {`)
-	for v := range types {
-		fmt.Fprintf(w, "Visit%sExpr(*%s) interface{}\n", v, strings.ToLower(v))
-	}
-	fmt.Fprintln(w, `}`)
-}
+// func defvisi(w io.Writer, types map[string]string) {
+// 	fmt.Fprintln(w, `type ExprVisitor interface {`)
+// 	for v := range types {
+// 		fmt.Fprintf(w, "Visit%sExpr(*%s) interface{}\n", v, strings.ToLower(v))
+// 	}
+// 	fmt.Fprintln(w, `}`)
+// }
 
 func defmyvisi(w io.Writer, name string) {
 	templ := `
 func (%c *%s) Accept(vis ExprVisitor) interface{} {
-	return vis.Visit%sExpr(%c)
+	return vis.Visit(%c)
 }
 `
 	lowname := strings.ToLower(name)
 	fmt.Fprintf(w, templ,
 		lowname[0], lowname,
-		name, lowname[0],
+		//name,
+		lowname[0],
 	)
 
 }

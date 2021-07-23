@@ -8,23 +8,24 @@ func (ap *AstPrinter) Print(e Expr) string {
 	return e.Accept(ap).(string)
 }
 
-func (ap *AstPrinter) VisitBinaryExpr(e *binary) interface{} {
-	return parenth(e.op.Lexeme, e.left, e.right)
-}
-
-func (ap *AstPrinter) VisitGroupingExpr(e *grouping) interface{} {
-	return parenth([]byte(`group`), e.expr)
-}
-
-func (ap *AstPrinter) VisitLiteralExpr(e *literal) interface{} {
-	if e.val == nil {
+// Visit conforms ExprVisitor.
+// Since Go does have type switches, we don't need to write visitors in their pure form.
+func (ap *AstPrinter) Visit(l interface{}) interface{} {
+	switch e := l.(type) {
+	case *binary:
+		return parenth(e.op.Lexeme, e.left, e.right)
+	case *grouping:
+		return parenth([]byte(`group`), e.expr)
+	case *literal:
+		if e.val == nil {
+			return nil
+		}
+		return fmt.Sprint(e.val)
+	case *unary:
+		return parenth(e.op.Lexeme, e.right)
+	default:
 		return nil
 	}
-	return fmt.Sprint(e.val)
-}
-
-func (ap *AstPrinter) VisitUnaryExpr(e *unary) interface{} {
-	return parenth(e.op.Lexeme, e.right)
 }
 
 func parenth(text []byte, es ...Expr) interface{} {

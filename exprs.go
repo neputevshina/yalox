@@ -1,12 +1,5 @@
 package main
 
-type ExprVisitor interface {
-	VisitBinaryExpr(*binary) interface{}
-	VisitGroupingExpr(*grouping) interface{}
-	VisitLiteralExpr(*literal) interface{}
-	VisitUnaryExpr(*unary) interface{}
-}
-
 // Binary
 func Binary(left Expr, op *Token, right Expr) Expr {
 	return &binary{
@@ -27,7 +20,7 @@ func (b *binary) Op() *Token  { return &Token{} }
 func (b *binary) Right() Expr { return nil }
 
 func (b *binary) Accept(vis ExprVisitor) interface{} {
-	return vis.VisitBinaryExpr(b)
+	return vis.Visit(b)
 }
 
 // Grouping
@@ -46,7 +39,7 @@ func (g *grouping) Op() *Token  { return &Token{} }
 func (g *grouping) Right() Expr { return nil }
 
 func (g *grouping) Accept(vis ExprVisitor) interface{} {
-	return vis.VisitGroupingExpr(g)
+	return vis.Visit(g)
 }
 
 // Literal
@@ -65,7 +58,7 @@ func (l *literal) Op() *Token  { return &Token{} }
 func (l *literal) Right() Expr { return nil }
 
 func (l *literal) Accept(vis ExprVisitor) interface{} {
-	return vis.VisitLiteralExpr(l)
+	return vis.Visit(l)
 }
 
 // Unary
@@ -86,5 +79,5 @@ func (u *unary) Op() *Token  { return &Token{} }
 func (u *unary) Right() Expr { return nil }
 
 func (u *unary) Accept(vis ExprVisitor) interface{} {
-	return vis.VisitUnaryExpr(u)
+	return vis.Visit(u)
 }
