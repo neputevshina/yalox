@@ -7,19 +7,23 @@ import (
 	"os"
 )
 
+//go:generate go run tool/astgen/astgen.go exprs
+//go:generate gofmt -w exprs.go
+
 // Have our interpreter had an error?
 var hadError bool
 
 func main() {
-	args := os.Args[1:]
-	if len(args) > 1 {
-		fmt.Fprintln(os.Stderr, `Usage: jlox <script>`)
-		os.Exit(64)
-	} else if len(args) == 1 {
-		runfile(os.Args[0])
-	} else {
-		runprompt()
-	}
+	apmain()
+	// args := os.Args[1:]
+	// if len(args) > 1 {
+	// 	fmt.Fprintln(os.Stderr, `Usage: jlox <script>`)
+	// 	os.Exit(64)
+	// } else if len(args) == 1 {
+	// 	runfile(os.Args[0])
+	// } else {
+	// 	runprompt()
+	// }
 }
 
 func runfile(path string) {
