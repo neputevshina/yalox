@@ -7,3 +7,7 @@ type Expr interface {
 	Op() *Token
 	Accept(ExprVisitor) interface{}
 }
+
+type ExprVisitor interface {
+	Visit(interface{}) interface{}
+}
