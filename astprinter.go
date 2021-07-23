@@ -52,5 +52,23 @@ func apmain() {
 				NewLiteral(45.67),
 			),
 		)
+	expr2 := NewBinary(
+		NewGrouping(
+			NewBinary(
+				NewLiteral(1),
+				&Token{Type: tokenPlus, Lexeme: []byte{'+'}},
+				NewLiteral(2),
+			),
+		),
+		&Token{Type: tokenStar, Lexeme: []byte{'*'}},
+		NewGrouping(
+			NewBinary(
+				NewLiteral(4),
+				&Token{Type: tokenMinus, Lexeme: []byte{'-'}},
+				NewLiteral(3),
+			),
+		),
+	)
 	fmt.Println((&AstPrinter{}).Print(expr))
+	fmt.Println((&RPN{}).Print(expr2))
 }
