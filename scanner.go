@@ -124,14 +124,12 @@ var keywords = map[string]int{
 	"while":  tokenWhile,
 }
 
-// Identifiers.
 func (s *Scanner) ident() {
 	r := s.peek()
 	for unicode.IsNumber(r) || unicode.IsLetter(r) {
 		r = s.advance()
 	}
 	text := s.Source[s.start : s.current-1]
-	println(string(text))
 	typ, k := keywords[string(text)]
 	if !k {
 		typ = tokenIdent
@@ -139,7 +137,6 @@ func (s *Scanner) ident() {
 	s.addToken(typ, nil)
 }
 
-// Numbers.
 func (s *Scanner) number() {
 	for isdigit(s.peek()) {
 		s.advance()
@@ -169,7 +166,6 @@ func (s *Scanner) peekNext() rune {
 	return r
 }
 
-// String parser.
 func (s *Scanner) str() {
 	for s.peek() != '"' && !s.isAtEnd() {
 		if s.peek() == '\n' {
@@ -183,7 +179,7 @@ func (s *Scanner) str() {
 	// The closing ".
 	s.advance()
 	// Trim the surrounding quotes and add token.
-	s.addToken(tokenString, s.Source[1:len(s.Source)-1])
+	s.addToken(tokenString, s.Source[1:len(s.Source)-2])
 }
 
 func (s *Scanner) addToken(tokentype int, literal interface{}) {
