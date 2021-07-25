@@ -23,7 +23,7 @@ func (p *Parser) Parse() Expr {
 	}()
 	select {
 	case <-p.raise:
-		return nil
+		return NewLiteral("<error>")
 	case <-done:
 		return expr
 	}

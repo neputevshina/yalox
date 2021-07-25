@@ -11,7 +11,11 @@ import (
 //go:generate gofmt -w exprs.go
 
 // Have our interpreter had an error?
-var hadError bool
+var (
+	interpreter     = NewInterpreter()
+	hadError        bool
+	hadRuntimeError bool
+)
 
 func main() {
 	// apmain()
@@ -39,6 +43,9 @@ func runfile(path string) {
 	if hadError {
 		os.Exit(65)
 	}
+	if hadRuntimeError {
+		os.Exit(70)
+	}
 }
 
 func runprompt() {
@@ -63,6 +70,7 @@ func run(source []byte) {
 	if hadError {
 		return
 	}
+	interpreter.Interpret(e)
 	fmt.Println((&AstPrinter{}).Print(e))
 }
 
@@ -76,6 +84,11 @@ func loxparseerr(tok Token, message string) {
 	} else {
 		report(tok.Line, " at `"+tok.String()+"`", message)
 	}
+}
+
+func loxerr2(e Error) {
+	fmt.Printf("at line %d: %s\n", e.Token.Line, e.Message)
+	hadRuntimeError = true
 }
 
 func report(line int, where string, message string) {

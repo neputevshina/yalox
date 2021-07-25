@@ -25,9 +25,8 @@ func (ap *AstPrinter) Visit(l interface{}) interface{} {
 		return fmt.Sprint(e.val)
 	case *Unary:
 		return parenth(e.op.Lexeme, e.right)
-	default:
-		return nil
 	}
+	panic("unreachable")
 }
 
 func parenth(text []byte, es ...Expr) interface{} {
