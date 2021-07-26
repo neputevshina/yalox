@@ -13,15 +13,15 @@ func (r *RPN) Print(e Expr) string {
 func (r *RPN) Visit(l interface{}) interface{} {
 	switch e := l.(type) {
 	case *Binary:
-		s := e.left.Accept(r).(string) + " "
-		s += e.right.Accept(r).(string) + " "
-		return s + string(e.op.Lexeme)
+		s := e.Left.Accept(r).(string) + " "
+		s += e.Right.Accept(r).(string) + " "
+		return s + string(e.Op.Lexeme)
 	case *Grouping:
-		return fmt.Sprint(e.expr.Accept(r))
+		return fmt.Sprint(e.Expr.Accept(r))
 	case *Literal:
-		return fmt.Sprint(e.val)
+		return fmt.Sprint(e.Val)
 	case *Unary:
-		return e.right.Accept(r).(string) + " " + string(e.op.Lexeme)
+		return e.Right.Accept(r).(string) + " " + string(e.Op.Lexeme)
 	default:
 		return nil
 	}

@@ -15,16 +15,16 @@ func (ap *AstPrinter) Print(e Expr) string {
 func (ap *AstPrinter) Visit(l interface{}) interface{} {
 	switch e := l.(type) {
 	case *Binary:
-		return parenth(e.op.Lexeme, e.left, e.right)
+		return parenth(e.Op.Lexeme, e.Left, e.Right)
 	case *Grouping:
-		return parenth([]byte(`group`), e.expr)
+		return parenth([]byte(`group`), e.Expr)
 	case *Literal:
-		if e.val == nil {
+		if e.Val == nil {
 			return nil
 		}
-		return fmt.Sprint(e.val)
+		return fmt.Sprint(e.Val)
 	case *Unary:
-		return parenth(e.op.Lexeme, e.right)
+		return parenth(e.Op.Lexeme, e.Right)
 	}
 	panic("unreachable")
 }
@@ -41,33 +41,33 @@ func parenth(text []byte, es ...Expr) interface{} {
 
 func apmain() {
 	expr :=
-		NewBinary(
-			NewUnary(
-				Token{Type: tokenMinus, Lexeme: []byte{'-'}},
-				NewLiteral(123),
-			),
-			Token{Type: tokenStar, Lexeme: []byte{'*'}},
-			NewGrouping(
-				NewLiteral(45.67),
-			),
-		)
-	expr2 := NewBinary(
-		NewGrouping(
-			NewBinary(
-				NewLiteral(1),
+		&Binary{
+			Left: &Unary{
+				Op:    Token{Type: tokenMinus, Lexeme: []byte{'-'}},
+				Right: &Literal{123},
+			},
+			Op: Token{Type: tokenStar, Lexeme: []byte{'*'}},
+			Right: &Grouping{
+				Expr: &Literal{46.67},
+			},
+		}
+	expr2 := &Binary{
+		&Grouping{
+			&Binary{
+				&Literal{1},
 				Token{Type: tokenPlus, Lexeme: []byte{'+'}},
-				NewLiteral(2),
-			),
-		),
+				&Literal{2},
+			},
+		},
 		Token{Type: tokenStar, Lexeme: []byte{'*'}},
-		NewGrouping(
-			NewBinary(
-				NewLiteral(4),
+		&Grouping{
+			&Binary{
+				&Literal{4},
 				Token{Type: tokenMinus, Lexeme: []byte{'-'}},
-				NewLiteral(3),
-			),
-		),
-	)
+				&Literal{3},
+			},
+		},
+	}
 	fmt.Println((&AstPrinter{}).Print(expr))
 	fmt.Println((&RPN{}).Print(expr2))
 }
