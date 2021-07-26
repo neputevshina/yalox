@@ -23,7 +23,7 @@ func (p *Parser) Parse() Expr {
 	}()
 	select {
 	case <-p.raise:
-		return NewLiteral("<error>")
+		return &Literal{"<error>"}
 	case <-done:
 		return expr
 	}
@@ -38,7 +38,7 @@ func (p *Parser) equality() Expr {
 	for p.match(tokenBangEqual, tokenEqualEqual) {
 		op := p.previous()
 		r := p.comparison()
-		e = NewBinary(e, op, r)
+		e = &Binary{e, op, r}
 	}
 	return e
 }
@@ -48,7 +48,7 @@ func (p *Parser) comparison() Expr {
 	for p.match(tokenGreater, tokenGreaterEqual, tokenLess, tokenLessEqual) {
 		op := p.previous()
 		r := p.term()
-		e = NewBinary(e, op, r)
+		e = &Binary{e, op, r}
 	}
 	return e
 }
@@ -58,7 +58,7 @@ func (p *Parser) term() Expr {
 	for p.match(tokenMinus, tokenPlus) {
 		op := p.previous()
 		r := p.factor()
-		e = NewBinary(e, op, r)
+		e = &Binary{e, op, r}
 	}
 	return e
 }
@@ -68,7 +68,7 @@ func (p *Parser) factor() Expr {
 	for p.match(tokenSlash, tokenStar) {
 		op := p.previous()
 		r := p.unary()
-		e = NewBinary(e, op, r)
+		e = &Binary{e, op, r}
 	}
 	return e
 }
@@ -77,7 +77,7 @@ func (p *Parser) unary() Expr {
 	if p.match(tokenBang, tokenMinus) {
 		op := p.previous()
 		r := p.unary()
-		return NewUnary(op, r)
+		return &Unary{op, r}
 	}
 	return p.primary()
 }
@@ -85,20 +85,20 @@ func (p *Parser) unary() Expr {
 func (p *Parser) primary() Expr {
 	switch {
 	case p.match(tokenFalse):
-		return NewLiteral(false)
+		return &Literal{false}
 	case p.match(tokenTrue):
-		return NewLiteral(true)
+		return &Literal{true}
 	case p.match(tokenNil):
-		return NewLiteral(nil)
+		return &Literal{nil}
 	}
 
 	if p.match(tokenNumber, tokenString) {
-		return NewLiteral(p.previous().Literal)
+		return &Literal{p.previous().Literal}
 	}
 	if p.match(tokenLeftParen) {
 		e := p.expression()
 		p.consume(tokenRightParen, "expect ')' after expression")
-		return NewGrouping(e)
+		return &Grouping{e}
 	}
 	p.raise <- struct{}{}
 	return nil
