@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"strconv"
 	"unicode"
 	"unicode/utf8"
@@ -12,6 +14,7 @@ type Scanner struct {
 	Tokens []Token
 
 	start, current, line int
+	matched              bool
 }
 
 // NewScanner is a constructor for Scanner.
@@ -48,6 +51,7 @@ var singles = map[rune]int{
 
 func (s *Scanner) scanToken() {
 	r := s.advance()
+	s.matched = true
 	// Trying to compress repeating code.
 	match1 := func(prim, alt int) {
 		if s.match('=') {
@@ -81,11 +85,15 @@ func (s *Scanner) scanToken() {
 		}
 
 	case ' ':
+		fallthrough
 	case '\r':
-	case '\t': // skip
+		fallthrough
+	case '\t':
+		s.matched = false
 		break
 
 	case '\n':
+		s.matched = false
 		s.line++
 
 	case '"':
@@ -102,6 +110,10 @@ func (s *Scanner) scanToken() {
 		} else {
 			loxerr(s.line, "unexpected character")
 		}
+	}
+	if s.matched {
+		last := s.Tokens[len(s.Tokens)-1]
+		fmt.Println(last.Line, last.Type, string(last.Lexeme), last.Literal)
 	}
 }
 
@@ -129,7 +141,8 @@ func (s *Scanner) ident() {
 	for unicode.IsNumber(r) || unicode.IsLetter(r) {
 		r = s.advance()
 	}
-	text := s.Source[s.start : s.current-1]
+	// i've tired to fight with it
+	text := bytes.TrimSpace(s.Source[s.start:s.current])
 	typ, k := keywords[string(text)]
 	if !k {
 		typ = tokenIdent
@@ -179,11 +192,13 @@ func (s *Scanner) str() {
 	// The closing ".
 	s.advance()
 	// Trim the surrounding quotes and add token.
-	s.addToken(tokenString, s.Source[1:len(s.Source)-2])
+	// I swear i will never in my life write scanners by hand.
+	trim := bytes.TrimSpace(s.Source[s.start:s.current])
+	s.addToken(tokenString, trim[1:len(trim)-1])
 }
 
 func (s *Scanner) addToken(tokentype int, literal interface{}) {
-	text := s.Source[s.start:s.current]
+	text := bytes.TrimSpace(s.Source[s.start:s.current])
 	s.Tokens = append(s.Tokens, Token{
 		Type:    tokentype,
 		Lexeme:  text,

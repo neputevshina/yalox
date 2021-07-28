@@ -3,30 +3,105 @@ package main
 type Parser struct {
 	Tokens  []Token
 	current int
-	raise   chan struct{}
+	raise   chan *Error
 }
 
 func NewParser(tokens []Token) *Parser {
 	return &Parser{
 		Tokens: tokens,
-		raise:  make(chan struct{}),
+		raise:  make(chan *Error),
 	}
 }
 
-func (p *Parser) Parse() Expr {
-	// Somewhat retarded way to do it, but it would probably work.
-	var expr Expr
+func (p *Parser) Parse() ([]Stmt, *Error) {
+	// Moved it, probably prematurely...
+	statements := make([]Stmt, 0, 10)
+	for !p.isAtEnd() {
+		decl, err := p.declaration()
+		if err != nil {
+			return nil, err
+		}
+		statements = append(statements, decl)
+	}
+	return statements, nil
+}
+
+func (p *Parser) declaration() (Stmt, *Error) {
+	// Please kill me...
 	done := make(chan struct{})
+	var stmt Stmt
 	go func() {
-		expr = p.expression()
+		if p.match(tokenVar) {
+			stmt = p.vardeclaration()
+		} else {
+			stmt = p.statement()
+		}
 		done <- struct{}{}
 	}()
 	select {
-	case <-p.raise:
-		return &Literal{"<error>"}
+	case err := <-p.raise:
+		p.synchronize()
+		return nil, err
 	case <-done:
-		return expr
+		return stmt, nil
 	}
+}
+
+func (p *Parser) synchronize() {
+	p.advance()
+	for !p.isAtEnd() {
+		if p.previous().Type == tokenSemicolon {
+			return
+		}
+	}
+	switch p.peek().Type {
+	case tokenClass:
+		fallthrough
+	case tokenFun:
+		fallthrough
+	case tokenVar:
+		fallthrough
+	case tokenFor:
+		fallthrough
+	case tokenIf:
+		fallthrough
+	case tokenWhile:
+		fallthrough
+	case tokenPrint:
+		fallthrough
+	case tokenReturn:
+		return
+	}
+	p.advance()
+}
+
+func (p *Parser) vardeclaration() Stmt {
+	name := p.consume(tokenIdent, "expect variable name")
+	var init Expr
+	if p.match(tokenEqual) {
+		init = p.expression()
+	}
+	p.consume(tokenSemicolon, "expect ';' after variable declaration")
+	return &Var{name, init}
+}
+
+func (p *Parser) statement() Stmt {
+	if p.match(tokenPrint) {
+		return p.printStatement()
+	}
+	return p.expressionStatement()
+}
+
+func (p *Parser) printStatement() Stmt {
+	value := p.expression()
+	p.consume(tokenSemicolon, "expect ';' after value")
+	return &Print{Expr: value}
+}
+
+func (p *Parser) expressionStatement() Stmt {
+	value := p.expression()
+	p.consume(tokenSemicolon, "expect ';' after expression")
+	return &Expression{Expr: value}
 }
 
 func (p *Parser) expression() Expr {
@@ -95,12 +170,16 @@ func (p *Parser) primary() Expr {
 	if p.match(tokenNumber, tokenString) {
 		return &Literal{p.previous().Literal}
 	}
+	if p.match(tokenIdent) {
+		return &Variable{p.previous()}
+	}
 	if p.match(tokenLeftParen) {
 		e := p.expression()
 		p.consume(tokenRightParen, "expect ')' after expression")
 		return &Grouping{e}
 	}
-	p.raise <- struct{}{}
+	panic("debug")
+	p.raise <- &Error{p.peek(), "expect expression or value"}
 	return nil
 }
 
@@ -118,9 +197,8 @@ func (p *Parser) consume(typ int, message string) Token {
 	if p.check(typ) {
 		return p.advance()
 	}
-	loxparseerr(p.peek(), message)
-	p.raise <- struct{}{}
-	return Token{} // todo
+	p.raise <- &Error{p.peek(), message}
+	return Token{}
 }
 
 func (p *Parser) check(typ int) bool {
