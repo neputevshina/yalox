@@ -8,26 +8,37 @@ type Error struct {
 }
 
 type Interpreter struct {
-	raise chan Error
+	raise chan *Error
+	env   Environment
 }
 
 func NewInterpreter() *Interpreter {
-	return &Interpreter{raise: make(chan Error)}
+	return &Interpreter{
+		raise: make(chan *Error),
+		env: Environment{
+			values: make(map[string]interface{}),
+		},
+	}
 }
 
-func (i *Interpreter) Interpret(e Expr) {
+func (i *Interpreter) Interpret(stmts []Stmt) {
 	done := make(chan struct{})
-	var value interface{}
 	go func() {
-		value = i.evaluate(e)
+		for _, s := range stmts {
+			i.execute(s)
+		}
 		done <- struct{}{}
 	}()
 	select {
-	case <-done:
-		fmt.Println(stringify(value))
 	case err := <-i.raise:
 		loxerr2(err)
+	case <-done:
+		return
 	}
+}
+
+func (i *Interpreter) execute(s Stmt) {
+	_ = s.Accept(i)
 }
 
 func (i *Interpreter) evaluate(e Expr) interface{} {
@@ -35,33 +46,49 @@ func (i *Interpreter) evaluate(e Expr) interface{} {
 }
 
 func (i *Interpreter) Visit(v interface{}) interface{} {
-	switch e := v.(type) {
+	switch a := v.(type) {
+	case *Expression:
+		i.evaluate(a.Expr)
+		return nil
+	case *Print:
+		v := i.evaluate(a.Expr)
+		fmt.Println(stringify(v))
+		return nil
+	case *Var:
+		var val interface{}
+		if a.Init != nil {
+			val = i.evaluate(a.Init)
+			fmt.Println(val)
+		}
+		i.env.Define(string(a.Name.Lexeme), val)
+		return nil
+	//
 	case *Literal:
-		return e.Val
+		return a.Val
 	case *Grouping:
-		return i.evaluate(e.Expr)
+		return i.evaluate(a.Expr)
 	case *Unary:
-		r := i.evaluate(e.Right)
-		switch e.Op.Type {
+		r := i.evaluate(a.Right)
+		switch a.Op.Type {
 		case tokenMinus:
-			return -i.maybefloat(e.Op, r)
+			return -i.maybefloat(a.Op, r)
 		case tokenBang:
 			return !istruthy(r)
 		}
 		panic("unreachable")
 	case *Binary:
-		l := i.evaluate(e.Left)
-		r := i.evaluate(e.Right)
-		switch e.Op.Type {
+		l := i.evaluate(a.Left)
+		r := i.evaluate(a.Right)
+		switch a.Op.Type {
 		case tokenMinus:
-			fl, fr := i.maybefloats(e.Op, l, r)
-			return fr - fl
+			fl, fr := i.maybefloats(a.Op, l, r)
+			return fl - fr
 		case tokenSlash:
-			fl, fr := i.maybefloats(e.Op, l, r)
-			return fr / fl
+			fl, fr := i.maybefloats(a.Op, l, r)
+			return fl / fr
 		case tokenStar:
-			fl, fr := i.maybefloats(e.Op, l, r)
-			return fr * fl
+			fl, fr := i.maybefloats(a.Op, l, r)
+			return fl * fr
 		case tokenPlus:
 			switch le := l.(type) {
 			case float64:
@@ -76,27 +103,33 @@ func (i *Interpreter) Visit(v interface{}) interface{} {
 				goto fail
 			}
 		fail:
-			i.raise <- Error{e.Op, "both operands must be either strings or numbers"}
+			i.raise <- &Error{a.Op, "both operands must be either strings or numbers"}
 			return ""
 		case tokenGreater:
-			fl, fr := i.maybefloats(e.Op, l, r)
+			fl, fr := i.maybefloats(a.Op, l, r)
 			return fl > fr
 		case tokenGreaterEqual:
-			fl, fr := i.maybefloats(e.Op, l, r)
+			fl, fr := i.maybefloats(a.Op, l, r)
 			return fl >= fr
 		case tokenLess:
-			fl, fr := i.maybefloats(e.Op, l, r)
+			fl, fr := i.maybefloats(a.Op, l, r)
 			return fl < fr
 		case tokenLessEqual:
-			fl, fr := i.maybefloats(e.Op, l, r)
+			fl, fr := i.maybefloats(a.Op, l, r)
 			return fl <= fr
-		case tokenEqual:
-			fl, fr := i.maybefloats(e.Op, l, r)
+		case tokenEqualEqual:
+			fl, fr := i.maybefloats(a.Op, l, r)
 			return fl == fr
 		case tokenBangEqual:
-			fl, fr := i.maybefloats(e.Op, l, r)
+			fl, fr := i.maybefloats(a.Op, l, r)
 			return fl != fr
 		}
+	case *Variable:
+		v, err := i.env.Get(a.Name)
+		if err != nil {
+			i.raise <- err
+		}
+		return v
 	}
 	panic("unreachable")
 }
@@ -104,7 +137,7 @@ func (i *Interpreter) Visit(v interface{}) interface{} {
 func (i *Interpreter) maybefloat(t Token, v interface{}) float64 {
 	f, k := v.(float64)
 	if !k {
-		i.raise <- Error{t, "operand must be a number"}
+		i.raise <- &Error{t, "operand must be a number"}
 	}
 	return f
 }
@@ -113,7 +146,7 @@ func (i *Interpreter) maybefloats(t Token, lv interface{}, rv interface{}) (floa
 	l, kl := lv.(float64)
 	r, kr := rv.(float64)
 	if !(kl && kr) {
-		i.raise <- Error{t, "operands must be numbers"}
+		i.raise <- &Error{t, "operands must be numbers"}
 	}
 	return l, r
 }
@@ -147,4 +180,4 @@ func stringify(v interface{}) string {
 	return fmt.Sprint(v)
 }
 
-var _ = ExprVisitor(&Interpreter{})
+var _ = Visitor(&Interpreter{})

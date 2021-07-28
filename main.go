@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
+	"runtime/pprof"
 )
 
-//go:generate go run tool/astgen/astgen.go exprs
-//go:generate gofmt -w exprs.go
+//go:generate go run acceptgen/gen.go structs visiters
+//go:generate gofmt -w visiters.go
 
 // Have our interpreter had an error?
 var (
@@ -18,6 +20,15 @@ var (
 )
 
 func main() {
+	f, err := os.Create("cpu.profile")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if pprof.StartCPUProfile(f) != nil {
+		panic(err)
+	}
+	defer pprof.StopCPUProfile()
+
 	// apmain()
 	args := os.Args[1:]
 	if len(args) > 1 {
@@ -66,12 +77,11 @@ func run(source []byte) {
 	tokens := scanner.ScanTokens()
 	parser := NewParser(tokens)
 
-	e := parser.Parse()
-	if hadError {
-		return
+	stmts, err := parser.Parse()
+	if err != nil {
+		loxerr2(err)
 	}
-	interpreter.Interpret(e)
-	fmt.Println((&AstPrinter{}).Print(e))
+	interpreter.Interpret(stmts)
 }
 
 func loxerr(line int, message string) {
@@ -86,7 +96,7 @@ func loxparseerr(tok Token, message string) {
 	}
 }
 
-func loxerr2(e Error) {
+func loxerr2(e *Error) {
 	fmt.Printf("at line %d: %s\n", e.Token.Line, e.Message)
 	hadRuntimeError = true
 }
