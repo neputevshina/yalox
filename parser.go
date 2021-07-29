@@ -92,13 +92,76 @@ func (p *Parser) varDeclaration() Stmt {
 }
 
 func (p *Parser) statement() Stmt {
-	if p.match(tokenPrint) {
+	switch {
+	case p.match(tokenFor):
+		return p.forStatement()
+	case p.match(tokenIf):
+		return p.ifStatement()
+	case p.match(tokenPrint):
 		return p.printStatement()
-	}
-	if p.match(tokenLeftBrace) {
+	case p.match(tokenWhile):
+		return p.whileStatement()
+	case p.match(tokenLeftBrace):
 		return &Block{p.block()}
+	default:
+		return p.expressionStatement()
 	}
-	return p.expressionStatement()
+}
+
+func (p *Parser) forStatement() Stmt {
+	p.consume(tokenLeftParen, "expect '(' after 'for'")
+	var init Stmt
+	if p.match(tokenSemicolon) {
+		init = nil
+	} else if p.match(tokenVar) {
+		init = p.varDeclaration()
+	} else {
+		init = p.expressionStatement()
+	}
+	var cond Expr
+	if !p.check(tokenSemicolon) {
+		cond = p.expression()
+	}
+	p.consume(tokenSemicolon, "expect ';' after loop condition")
+	var incr Expr
+	if !p.check(tokenRightParen) {
+		incr = p.expression()
+	}
+	p.consume(tokenRightParen, "expect ')' after loop condition")
+	body := p.statement()
+	if incr != nil {
+		body = &Block{Stmts: []Stmt{body, &Expression{incr}}}
+	}
+	if cond == nil {
+		cond = &Literal{true}
+	}
+	body = &While{cond, body}
+	if init != nil {
+		body = &Block{[]Stmt{init, body}}
+	}
+
+	return body
+}
+
+func (p *Parser) whileStatement() Stmt {
+	p.consume(tokenLeftParen, "expect '(' after 'while'")
+	cond := p.expression()
+	p.consume(tokenRightParen, "expect ')' after condition")
+	body := p.statement()
+	return &While{cond, body}
+}
+
+func (p *Parser) ifStatement() Stmt {
+	p.consume(tokenLeftParen, "expect '(' after 'if'")
+	cond := p.expression()
+	p.consume(tokenRightParen, "expect ')' after condition")
+
+	then := p.statement()
+	els := Stmt(nil)
+	if p.match(tokenElse) {
+		els = p.statement()
+	}
+	return &If{cond, then, els}
 }
 
 func (p *Parser) block() []Stmt {
@@ -127,7 +190,7 @@ func (p *Parser) expression() Expr {
 }
 
 func (p *Parser) assignment() Expr {
-	expr := p.equality()
+	expr := p.or()
 	if p.match(tokenEqual) {
 		equals := p.previous()
 		value := p.assignment()
@@ -136,6 +199,26 @@ func (p *Parser) assignment() Expr {
 			return &Assign{name, value}
 		}
 		loxerr2(&Error{equals, "invalid assignment target"})
+	}
+	return expr
+}
+
+func (p *Parser) or() Expr {
+	expr := p.and()
+	for p.match(tokenOr) {
+		op := p.previous()
+		r := p.and()
+		expr = &Logical{expr, op, r}
+	}
+	return expr
+}
+
+func (p *Parser) and() Expr {
+	expr := p.equality()
+	for p.match(tokenAnd) {
+		op := p.previous()
+		r := p.and()
+		expr = &Logical{expr, op, r}
 	}
 	return expr
 }

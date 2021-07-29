@@ -1,6 +1,8 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Error struct {
 	Token   Token
@@ -23,7 +25,7 @@ func (i *Interpreter) Interpret(stmts []Stmt) {
 	done := make(chan struct{})
 	go func() {
 		for _, s := range stmts {
-			i.execute(s)
+			i.exec(s)
 		}
 		done <- struct{}{}
 	}()
@@ -35,40 +37,67 @@ func (i *Interpreter) Interpret(stmts []Stmt) {
 	}
 }
 
-func (i *Interpreter) execute(s Stmt) {
+func (i *Interpreter) exec(s Stmt) {
 	_ = s.Accept(i)
 }
 
-func (i *Interpreter) evaluate(e Expr) interface{} {
+func (i *Interpreter) eval(e Expr) interface{} {
 	return e.Accept(i)
 }
 
 func (i *Interpreter) Visit(v interface{}) interface{} {
 	switch a := v.(type) {
+	case *If:
+		if istruthy(i.eval(a.Cond)) {
+			i.exec(a.Then)
+		} else if a.Else != nil {
+			i.exec(a.Else)
+		}
+		return nil
 	case *Block:
 		i.executeBlock(a.Stmts, NewEnvironment(i.env))
 		return nil
 	case *Expression:
-		i.evaluate(a.Expr)
+		i.eval(a.Expr)
 		return nil
 	case *Print:
-		v := i.evaluate(a.Expr)
+		v := i.eval(a.Expr)
 		fmt.Println(stringify(v))
 		return nil
 	case *Var:
 		var val interface{}
 		if a.Init != nil {
-			val = i.evaluate(a.Init)
+			val = i.eval(a.Init)
 		}
 		i.env.Define(string(a.Name.Lexeme), val)
+		return nil
+	case *While:
+		for istruthy(i.eval(a.Cond)) {
+			i.exec(a.Body)
+		}
 		return nil
 		//
 	case *Literal:
 		return a.Val
+	case *Logical:
+		l := i.eval(a.Left)
+		switch a.Op.Type {
+		case tokenOr:
+			if istruthy(l) {
+				return l
+			}
+		case tokenAnd:
+			if !istruthy(l) {
+				return l
+			}
+		default:
+			panic("unreachable")
+		}
+		return i.eval(a.Right)
 	case *Grouping:
-		return i.evaluate(a.Expr)
+		return i.eval(a.Expr)
 	case *Unary:
-		r := i.evaluate(a.Right)
+		r := i.eval(a.Right)
 		switch a.Op.Type {
 		case tokenMinus:
 			return -i.maybefloat(a.Op, r)
@@ -77,8 +106,8 @@ func (i *Interpreter) Visit(v interface{}) interface{} {
 		}
 		panic("unreachable")
 	case *Binary:
-		l := i.evaluate(a.Left)
-		r := i.evaluate(a.Right)
+		l := i.eval(a.Left)
+		r := i.eval(a.Right)
 		switch a.Op.Type {
 		case tokenMinus:
 			fl, fr := i.maybefloats(a.Op, l, r)
@@ -131,7 +160,7 @@ func (i *Interpreter) Visit(v interface{}) interface{} {
 		}
 		return v
 	case *Assign:
-		value := i.evaluate(a.Val)
+		value := i.eval(a.Val)
 		i.env.Assign(a.Name, value)
 		return value
 	}
@@ -144,7 +173,7 @@ func (i *Interpreter) executeBlock(stmts []Stmt, env *Environment) {
 	defer func() { i.env = prev }()
 	i.env = env
 	for _, s := range stmts {
-		i.execute(s)
+		i.exec(s)
 	}
 }
 

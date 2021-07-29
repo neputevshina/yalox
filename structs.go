@@ -44,3 +44,20 @@ type Assign struct {
 type Block struct {
 	Stmts []Stmt
 }
+
+type If struct {
+	Cond Expr
+	Then Expr
+	Else Expr
+}
+
+type Logical struct {
+	Left  Expr
+	Op    Token
+	Right Expr
+}
+
+type While struct {
+	Cond Expr
+	Body Stmt
+}
