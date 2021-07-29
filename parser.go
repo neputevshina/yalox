@@ -14,25 +14,29 @@ func NewParser(tokens []Token) *Parser {
 }
 
 func (p *Parser) Parse() ([]Stmt, *Error) {
-	// Moved it, probably prematurely...
 	statements := make([]Stmt, 0, 10)
-	for !p.isAtEnd() {
-		decl, err := p.declaration()
-		if err != nil {
-			return nil, err
+	done := make(chan struct{})
+	go func() {
+		for !p.isAtEnd() {
+			decl := p.declaration()
+			statements = append(statements, decl)
 		}
-		statements = append(statements, decl)
+		done <- struct{}{}
+	}()
+	select {
+	case err := <-p.raise:
+		return nil, err
+	case <-done:
+		return statements, nil
 	}
-	return statements, nil
 }
 
-func (p *Parser) declaration() (Stmt, *Error) {
-	// Please kill me...
+func (p *Parser) declaration() Stmt {
 	done := make(chan struct{})
 	var stmt Stmt
 	go func() {
 		if p.match(tokenVar) {
-			stmt = p.vardeclaration()
+			stmt = p.varDeclaration()
 		} else {
 			stmt = p.statement()
 		}
@@ -41,9 +45,11 @@ func (p *Parser) declaration() (Stmt, *Error) {
 	select {
 	case err := <-p.raise:
 		p.synchronize()
-		return nil, err
+		// Please kill me...
+		p.raise <- err
+		return nil
 	case <-done:
-		return stmt, nil
+		return stmt
 	}
 }
 
@@ -75,7 +81,7 @@ func (p *Parser) synchronize() {
 	p.advance()
 }
 
-func (p *Parser) vardeclaration() Stmt {
+func (p *Parser) varDeclaration() Stmt {
 	name := p.consume(tokenIdent, "expect variable name")
 	var init Expr
 	if p.match(tokenEqual) {
@@ -89,7 +95,19 @@ func (p *Parser) statement() Stmt {
 	if p.match(tokenPrint) {
 		return p.printStatement()
 	}
+	if p.match(tokenLeftBrace) {
+		return &Block{p.block()}
+	}
 	return p.expressionStatement()
+}
+
+func (p *Parser) block() []Stmt {
+	stmts := make([]Stmt, 0, 10)
+	for !(p.check(tokenRightBrace) || p.isAtEnd()) {
+		stmts = append(stmts, p.declaration())
+	}
+	p.consume(tokenRightBrace, "expect '}' after block")
+	return stmts
 }
 
 func (p *Parser) printStatement() Stmt {
@@ -105,7 +123,21 @@ func (p *Parser) expressionStatement() Stmt {
 }
 
 func (p *Parser) expression() Expr {
-	return p.equality()
+	return p.assignment()
+}
+
+func (p *Parser) assignment() Expr {
+	expr := p.equality()
+	if p.match(tokenEqual) {
+		equals := p.previous()
+		value := p.assignment()
+		if e, k := expr.(*Variable); k {
+			name := e.Name
+			return &Assign{name, value}
+		}
+		loxerr2(&Error{equals, "invalid assignment target"})
+	}
+	return expr
 }
 
 func (p *Parser) equality() Expr {
@@ -178,7 +210,6 @@ func (p *Parser) primary() Expr {
 		p.consume(tokenRightParen, "expect ')' after expression")
 		return &Grouping{e}
 	}
-	panic("debug")
 	p.raise <- &Error{p.peek(), "expect expression or value"}
 	return nil
 }

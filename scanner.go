@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"strconv"
 	"unicode"
 	"unicode/utf8"
@@ -14,7 +13,7 @@ type Scanner struct {
 	Tokens []Token
 
 	start, current, line int
-	matched              bool
+	// matched              bool
 }
 
 // NewScanner is a constructor for Scanner.
@@ -51,7 +50,7 @@ var singles = map[rune]int{
 
 func (s *Scanner) scanToken() {
 	r := s.advance()
-	s.matched = true
+	// s.matched = true
 	// Trying to compress repeating code.
 	match1 := func(prim, alt int) {
 		if s.match('=') {
@@ -89,11 +88,11 @@ func (s *Scanner) scanToken() {
 	case '\r':
 		fallthrough
 	case '\t':
-		s.matched = false
+		// s.matched = false
 		break
 
 	case '\n':
-		s.matched = false
+		// s.matched = false
 		s.line++
 
 	case '"':
@@ -111,10 +110,10 @@ func (s *Scanner) scanToken() {
 			loxerr(s.line, "unexpected character")
 		}
 	}
-	if s.matched {
-		last := s.Tokens[len(s.Tokens)-1]
-		fmt.Println(last.Line, last.Type, string(last.Lexeme), last.Literal)
-	}
+	// if s.matched {
+	// 	last := s.Tokens[len(s.Tokens)-1]
+	// 	fmt.Println(last.Line, last.Type, string(last.Lexeme), last.Literal)
+	// }
 }
 
 var keywords = map[string]int{
