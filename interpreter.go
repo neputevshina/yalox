@@ -9,15 +9,13 @@ type Error struct {
 
 type Interpreter struct {
 	raise chan *Error
-	env   Environment
+	env   *Environment
 }
 
 func NewInterpreter() *Interpreter {
 	return &Interpreter{
 		raise: make(chan *Error),
-		env: Environment{
-			values: make(map[string]interface{}),
-		},
+		env:   NewEnvironment(nil),
 	}
 }
 
@@ -47,6 +45,9 @@ func (i *Interpreter) evaluate(e Expr) interface{} {
 
 func (i *Interpreter) Visit(v interface{}) interface{} {
 	switch a := v.(type) {
+	case *Block:
+		i.executeBlock(a.Stmts, NewEnvironment(i.env))
+		return nil
 	case *Expression:
 		i.evaluate(a.Expr)
 		return nil
@@ -58,11 +59,10 @@ func (i *Interpreter) Visit(v interface{}) interface{} {
 		var val interface{}
 		if a.Init != nil {
 			val = i.evaluate(a.Init)
-			fmt.Println(val)
 		}
 		i.env.Define(string(a.Name.Lexeme), val)
 		return nil
-	//
+		//
 	case *Literal:
 		return a.Val
 	case *Grouping:
@@ -130,8 +130,22 @@ func (i *Interpreter) Visit(v interface{}) interface{} {
 			i.raise <- err
 		}
 		return v
+	case *Assign:
+		value := i.evaluate(a.Val)
+		i.env.Assign(a.Name, value)
+		return value
 	}
 	panic("unreachable")
+}
+
+func (i *Interpreter) executeBlock(stmts []Stmt, env *Environment) {
+	// i cross my fingers
+	prev := i.env
+	defer func() { i.env = prev }()
+	i.env = env
+	for _, s := range stmts {
+		i.execute(s)
+	}
 }
 
 func (i *Interpreter) maybefloat(t Token, v interface{}) float64 {

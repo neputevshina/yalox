@@ -40,3 +40,7 @@ type Assign struct {
 	Name Token
 	Val  Expr
 }
+
+type Block struct {
+	Stmts []Stmt
+}
