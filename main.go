@@ -80,8 +80,9 @@ func run(source []byte) {
 	stmts, err := parser.Parse()
 	if err != nil {
 		loxerr2(err)
+	} else {
+		interpreter.Interpret(stmts)
 	}
-	interpreter.Interpret(stmts)
 }
 
 func loxerr(line int, message string) {
