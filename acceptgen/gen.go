@@ -27,16 +27,17 @@ package main
 
 	for _, d := range f.Scope.Objects {
 		if d.Kind == ast.Typ {
-			// I have tried to do and tired doing some fuckery with Go's AST package and has decided to use brute force.
+			// I have tried to do and tired doing some fuckery with Go's AST package and have decided to use brute force.
 			name := d.Name
 			i0, _ := utf8.DecodeRuneInString(d.Name)
 			ini := unicode.ToLower(i0)
 			out.WriteString(fmt.Sprintf(`
-func (%c *%s) Accept(vis Visitor) interface{} {
+// Accept is an auto-generated acceptor method for %s
+func (%c *%s) Accept(vis Visitor) (interface{}, *Error) {
 	return vis.Visit(%c)
 }
 `,
-				ini, name, ini),
+				name, ini, name, ini),
 			)
 		}
 	}

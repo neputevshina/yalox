@@ -14,7 +14,7 @@ import (
 
 // Have our interpreter had an error?
 var (
-	interpreter     = NewInterpreter()
+	interpreter     = NewInterpreter(NewEnvironment(nil))
 	hadError        bool
 	hadRuntimeError bool
 )
@@ -27,18 +27,17 @@ func main() {
 	if pprof.StartCPUProfile(f) != nil {
 		panic(err)
 	}
-	defer pprof.StopCPUProfile()
-
 	// apmain()
 	args := os.Args[1:]
 	if len(args) > 1 {
 		fmt.Fprintln(os.Stderr, `Usage: jlox <script>`)
 		os.Exit(64)
 	} else if len(args) == 1 {
-		runfile(os.Args[0])
+		runfile(os.Args[1])
 	} else {
 		runprompt()
 	}
+	//pprof.StopCPUProfile()
 }
 
 func runfile(path string) {
@@ -74,6 +73,7 @@ func runprompt() {
 
 func run(source []byte) {
 	scanner := NewScanner(source)
+	scanner.ScanTokens()
 	tokens := scanner.ScanTokens()
 	parser := NewParser(tokens)
 

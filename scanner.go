@@ -1,121 +1,10 @@
 package main
 
 import (
-	"bytes"
-	"fmt"
 	"strconv"
 	"unicode"
 	"unicode/utf8"
 )
-
-// Scanner is a lexical analyzer class.
-type Scanner struct {
-	Source []byte
-	Tokens []Token
-
-	start, current, line int
-	matched              bool
-}
-
-// NewScanner is a constructor for Scanner.
-func NewScanner(source []byte) *Scanner {
-	return &Scanner{
-		Source: source,
-		line:   1,
-	}
-}
-
-// ScanTokens lexes the input and returns a slice of tokens.
-func (s *Scanner) ScanTokens() []Token {
-	for !s.isAtEnd() {
-		s.start = s.current
-		s.scanToken()
-	}
-	s.Tokens = append(s.Tokens, Token{Type: tokenEOF})
-	return s.Tokens
-}
-
-// Characters that don't require special treatment.
-var singles = map[rune]int{
-	'(': tokenLeftParen,
-	')': tokenRightParen,
-	'{': tokenLeftBrace,
-	'}': tokenRightBrace,
-	',': tokenComma,
-	'.': tokenDot,
-	'-': tokenMinus,
-	'+': tokenPlus,
-	';': tokenSemicolon,
-	'*': tokenStar,
-}
-
-func (s *Scanner) scanToken() {
-	r := s.advance()
-	s.matched = true
-	// Trying to compress repeating code.
-	match1 := func(prim, alt int) {
-		if s.match('=') {
-			s.addToken(prim, nil)
-		} else {
-			s.addToken(alt, nil)
-		}
-	}
-	switch r {
-	case '!':
-		match1(tokenBangEqual, tokenBang)
-	case '=':
-		match1(tokenEqualEqual, tokenEqual)
-	case '<':
-		match1(tokenLessEqual, tokenLess)
-	case '>':
-		match1(tokenGreaterEqual, tokenGreater)
-	case '/':
-		if s.match('/') {
-			// Skip comments.
-			for s.peek() != '\n' && !s.isAtEnd() {
-				s.advance()
-			}
-		} else if s.match('*') { // Challenge 4.4: add multiline comments.
-			// Intentionally won't work in REPL mode.
-			for !(s.peek() == '*' && s.peekNext() == '/') {
-				s.advance()
-			}
-		} else {
-			s.addToken(tokenSlash, nil)
-		}
-
-	case ' ':
-		fallthrough
-	case '\r':
-		fallthrough
-	case '\t':
-		s.matched = false
-		break
-
-	case '\n':
-		s.matched = false
-		s.line++
-
-	case '"':
-		s.str()
-
-	default:
-		if isdigit(r) {
-			s.number()
-		} else if unicode.IsLetter(r) {
-			// I'm cheating here, but it will allow e.g. cyrillic idents.
-			s.ident()
-		} else if v, k := singles[r]; k {
-			s.addToken(v, nil)
-		} else {
-			loxerr(s.line, "unexpected character")
-		}
-	}
-	if s.matched {
-		last := s.Tokens[len(s.Tokens)-1]
-		fmt.Println(last.Line, last.Type, string(last.Lexeme), last.Literal)
-	}
-}
 
 var keywords = map[string]int{
 	"and":    tokenAnd,
@@ -136,75 +25,29 @@ var keywords = map[string]int{
 	"while":  tokenWhile,
 }
 
-func (s *Scanner) ident() {
-	r := s.peek()
-	for unicode.IsNumber(r) || unicode.IsLetter(r) {
-		r = s.advance()
-	}
-	// i've tired to fight with it
-	text := bytes.TrimSpace(s.Source[s.start:s.current])
-	typ, k := keywords[string(text)]
-	if !k {
-		typ = tokenIdent
-	}
-	s.addToken(typ, nil)
+// Scanner is a lexical analyzer class.
+type Scanner struct {
+	Source []byte
+	Tokens []Token
+
+	start, current, line int
 }
 
-func (s *Scanner) number() {
-	for isdigit(s.peek()) {
-		s.advance()
+// NewScanner is a constructor for Scanner.
+func NewScanner(source []byte) *Scanner {
+	return &Scanner{
+		Source: source,
+		line:   1,
 	}
-	// Look for fractional part.
-	if s.peek() == '.' && isdigit(s.peekNext()) {
-		// Consume the dot.
-		s.advance()
-		for isdigit(s.peek()) {
-			s.advance()
-		}
-	}
-	n, err := strconv.ParseFloat(string(s.Source[s.start:s.current]), 64)
-	if err != nil {
-		loxerr(s.line, "incorrect number")
-	}
-	s.addToken(tokenNumber, n)
 }
 
-func (s *Scanner) peekNext() rune {
-	// Pretty cursed.
-	_, sz1 := utf8.DecodeRune(s.Source[s.current:])
-	r, sz2 := utf8.DecodeRune(s.Source[s.current+sz1:])
-	if sz2 >= len(s.Source) {
-		return 0
+func (s *Scanner) ScanTokens() []Token {
+	for !s.isAtEnd() {
+		s.start = s.current
+		s.next()
 	}
-	return r
-}
-
-func (s *Scanner) str() {
-	for s.peek() != '"' && !s.isAtEnd() {
-		if s.peek() == '\n' {
-			s.line++
-		}
-		s.advance()
-	}
-	if s.isAtEnd() {
-		loxerr(s.line, "unterminated string")
-	}
-	// The closing ".
-	s.advance()
-	// Trim the surrounding quotes and add token.
-	// I swear i will never in my life write scanners by hand.
-	trim := bytes.TrimSpace(s.Source[s.start:s.current])
-	s.addToken(tokenString, trim[1:len(trim)-1])
-}
-
-func (s *Scanner) addToken(tokentype int, literal interface{}) {
-	text := bytes.TrimSpace(s.Source[s.start:s.current])
-	s.Tokens = append(s.Tokens, Token{
-		Type:    tokentype,
-		Lexeme:  text,
-		Literal: literal,
-		Line:    s.line,
-	})
+	s.Tokens = append(s.Tokens, Token{Type: tokenEOF, Lexeme: []byte{}})
+	return s.Tokens
 }
 
 func (s *Scanner) isAtEnd() bool {
@@ -215,32 +58,117 @@ func isdigit(r rune) bool {
 	return r >= '0' && r <= '9'
 }
 
-// Get a current rune.
-func (s *Scanner) getr() rune {
-	r, _ := utf8.DecodeRune(s.Source[s.current:])
-	return r
+// Characters that don't require special treatment.
+var singles = map[rune]int{
+	'(': tokenLeftParen,
+	')': tokenRightParen,
+	'{': tokenLeftBrace,
+	'}': tokenRightBrace,
+	',': tokenComma,
+	'.': tokenDot,
+	'-': tokenMinus,
+	'+': tokenPlus,
+	';': tokenSemicolon,
+	'*': tokenStar,
 }
 
-// Advance current position by one rune.
-func (s *Scanner) skip() {
-	_, sz := utf8.DecodeRune(s.Source[s.current:])
-	s.current += sz
+func (s *Scanner) next() {
+	r := s.advance()
+	match1 := func(prim, alt int) {
+		if s.match('=') {
+			s.addToken(prim, nil)
+		} else {
+			s.addToken(alt, nil)
+		}
+	}
+	switch r {
+	case '\n':
+		s.line++
+	case '!':
+		match1(tokenBangEqual, tokenBang)
+	case '=':
+		match1(tokenEqualEqual, tokenEqual)
+	case '<':
+		match1(tokenLessEqual, tokenLess)
+	case '>':
+		match1(tokenGreaterEqual, tokenGreater)
+	case '"':
+		s.string()
+	case '/':
+		if s.match('/') {
+			for s.peek() != '\n' && !s.isAtEnd() {
+				s.advance()
+			}
+		} else {
+			s.addToken(tokenSlash, nil)
+		}
+	default:
+		if isdigit(r) {
+			s.number()
+		} else if c, ok := singles[r]; ok {
+			s.addToken(c, nil)
+		} else if unicode.IsLetter(r) {
+			s.ident()
+		} else {
+			loxerr(s.line, "unexpected character")
+		}
+	case ' ':
+	case '\r':
+	case '\t':
+	}
 }
 
-func (s *Scanner) match(expected rune) bool {
+func (s *Scanner) ident() {
+	for unicode.IsDigit(s.peek()) || unicode.IsLetter(s.peek()) {
+		s.advance()
+	}
+
+	text := s.Source[s.start:s.current]
+	if typ, ok := keywords[string(text)]; ok {
+		s.addToken(typ, nil)
+		return
+	}
+	s.addToken(tokenIdent, nil)
+}
+
+func (s *Scanner) number() {
+	for isdigit(s.peek()) {
+		s.advance()
+	}
+	if s.peek() == '.' && isdigit(s.peekNext()) {
+		s.advance()
+		for isdigit(s.peek()) {
+			s.advance()
+		}
+	}
+	f, _ := strconv.ParseFloat(string(s.Source[s.start:s.current]), 64)
+	s.addToken(tokenNumber, f)
+
+}
+
+func (s *Scanner) string() {
+	for s.peek() != '"' && !s.isAtEnd() {
+		if s.peek() == '\n' {
+			s.line++
+		}
+		s.advance()
+	}
 	if s.isAtEnd() {
-		return false
+		loxerr(s.line, "unterminated string")
+		return
 	}
-	if s.getr() != expected {
-		return false
-	}
-	s.skip()
-	return true
+	s.advance()
+
+	val := s.Source[1+s.start : s.current-1]
+	s.addToken(tokenString, val)
 }
 
-func (s *Scanner) advance() rune {
-	r := s.getr()
-	s.skip()
+func (s *Scanner) peekNext() rune {
+	_, sz1 := utf8.DecodeRune(s.Source[s.current:])
+	r, _ := utf8.DecodeRune(s.Source[s.current+sz1:])
+	if s.current+sz1 >= len(s.Source) {
+		return 0
+	}
 	return r
 }
 
@@ -248,5 +176,37 @@ func (s *Scanner) peek() rune {
 	if s.isAtEnd() {
 		return 0
 	}
-	return s.getr()
+	return s.cur()
+}
+
+func (s *Scanner) match(expected rune) bool {
+	if s.isAtEnd() {
+		return false
+	}
+	if s.cur() != expected {
+		return false
+	}
+	s.adv()
+	return true
+}
+
+func (s *Scanner) cur() rune {
+	r, _ := utf8.DecodeRune(s.Source[s.current:])
+	return r
+}
+
+func (s *Scanner) adv() {
+	_, sz := utf8.DecodeRune(s.Source[s.current:])
+	s.current += sz
+}
+
+func (s *Scanner) advance() rune {
+	r := s.cur()
+	s.adv()
+	return r
+}
+
+func (s *Scanner) addToken(typ int, literal interface{}) {
+	text := s.Source[s.start:s.current]
+	s.Tokens = append(s.Tokens, Token{typ, text, literal, s.line})
 }
