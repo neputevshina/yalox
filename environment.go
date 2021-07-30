@@ -1,8 +1,12 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 type Environment struct {
+	sync.Mutex
 	enclosing *Environment
 	values    map[string]interface{}
 }

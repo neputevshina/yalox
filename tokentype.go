@@ -2,6 +2,7 @@ package main
 
 // Enum TokenType in the book.
 const (
+	returnMe = -1
 	// One character
 	_ = iota
 	tokenLeftParen

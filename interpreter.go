@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 )
 
 type Error struct {
@@ -10,85 +11,130 @@ type Error struct {
 }
 
 type Interpreter struct {
-	raise chan *Error
-	env   *Environment
+	raise   chan *Error
+	env     *Environment
+	globals *Environment
+	ret     chan interface{}
 }
 
-func NewInterpreter() *Interpreter {
-	return &Interpreter{
-		raise: make(chan *Error),
-		env:   NewEnvironment(nil),
+type nf_clock struct{}
+
+func (*nf_clock) Call(i *Interpreter, args []interface{}) interface{} {
+	return time.Now().Unix()
+}
+
+func (*nf_clock) Arity() int {
+	return 0
+}
+
+func (*nf_clock) String() string {
+	return "<native fn>"
+}
+
+func NewInterpreter(env *Environment) *Interpreter {
+	i := &Interpreter{
+		raise:   make(chan *Error),
+		globals: env,
+		ret:     make(chan interface{}, 0),
 	}
+	i.env = i.globals
+	i.globals.Define("clock", &nf_clock{})
+	return i
 }
 
 func (i *Interpreter) Interpret(stmts []Stmt) {
-	done := make(chan struct{})
-	go func() {
-		for _, s := range stmts {
-			i.exec(s)
+	for _, s := range stmts {
+		err := i.exec(s)
+		if err != nil {
+			loxerr2(err)
 		}
-		done <- struct{}{}
-	}()
-	select {
-	case err := <-i.raise:
-		loxerr2(err)
-	case <-done:
-		return
 	}
 }
 
-func (i *Interpreter) exec(s Stmt) {
-	_ = s.Accept(i)
+func (i *Interpreter) exec(s Stmt) *Error {
+	_, err := s.Accept(i)
+	return err
 }
 
-func (i *Interpreter) eval(e Expr) interface{} {
+func (i *Interpreter) eval(e Expr) (interface{}, *Error) {
 	return e.Accept(i)
 }
 
-func (i *Interpreter) Visit(v interface{}) interface{} {
+func (i *Interpreter) Visit(v interface{}) (interface{}, *Error) {
 	switch a := v.(type) {
 	case *If:
-		if istruthy(i.eval(a.Cond)) {
-			i.exec(a.Then)
-		} else if a.Else != nil {
-			i.exec(a.Else)
+		v, err := i.eval(a.Cond)
+		if err != nil {
+			return nil, err
 		}
-		return nil
+		if istruthy(v) {
+			err = i.exec(a.Then)
+		} else if a.Else != nil {
+			err = i.exec(a.Else)
+		}
+		return nil, err
+	case *Return:
+		val := interface{}(nil)
+		var err *Error
+		if a.Value != nil {
+			val, err = i.eval(a.Value)
+		}
+		if err != nil {
+			err = &Error{Token{Type: returnMe, Literal: val}, ""}
+		}
+		return nil, err
 	case *Block:
 		i.executeBlock(a.Stmts, NewEnvironment(i.env))
-		return nil
+		return nil, nil
 	case *Expression:
-		i.eval(a.Expr)
-		return nil
+		_, err := i.eval(a.Expr)
+		return nil, err
+	case *Function:
+		fn := &Func{a}
+		i.env.Define(string(a.Name.Lexeme), fn)
+		return nil, nil
 	case *Print:
-		v := i.eval(a.Expr)
-		fmt.Println(stringify(v))
-		return nil
+		v, err := i.eval(a.Expr)
+		if err == nil {
+			fmt.Println(stringify(v))
+		}
+		return nil, err
 	case *Var:
 		var val interface{}
+		var err *Error
 		if a.Init != nil {
-			val = i.eval(a.Init)
+			val, err = i.eval(a.Init)
 		}
 		i.env.Define(string(a.Name.Lexeme), val)
-		return nil
+		return nil, err
 	case *While:
-		for istruthy(i.eval(a.Cond)) {
-			i.exec(a.Body)
+		v, err := i.eval(a.Cond)
+		if err != nil {
+			return nil, err
 		}
-		return nil
+		for istruthy(v) {
+			err := i.exec(a.Body)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return nil, nil
 		//
 	case *Literal:
-		return a.Val
+		return a.Val, nil
 	case *Logical:
-		l := i.eval(a.Left)
+		l, err := i.eval(a.Left)
+		if err != nil {
+			return nil, err
+		}
 		switch a.Op.Type {
 		case tokenOr:
 			if istruthy(l) {
-				return l
+				return l, nil
 			}
 		case tokenAnd:
 			if !istruthy(l) {
-				return l
+				return l, nil
 			}
 		default:
 			panic("unreachable")
@@ -97,101 +143,136 @@ func (i *Interpreter) Visit(v interface{}) interface{} {
 	case *Grouping:
 		return i.eval(a.Expr)
 	case *Unary:
-		r := i.eval(a.Right)
+		r, err := i.eval(a.Right)
 		switch a.Op.Type {
 		case tokenMinus:
-			return -i.maybefloat(a.Op, r)
+			v, err := i.maybefloat(a.Op, r)
+			return -v, err
 		case tokenBang:
-			return !istruthy(r)
+			return !istruthy(r), err
 		}
 		panic("unreachable")
 	case *Binary:
-		l := i.eval(a.Left)
-		r := i.eval(a.Right)
+		l, err := i.eval(a.Left)
+		if err != nil {
+			return nil, err
+		}
+		r, err := i.eval(a.Right)
+		if err != nil {
+			return nil, err
+		}
 		switch a.Op.Type {
 		case tokenMinus:
-			fl, fr := i.maybefloats(a.Op, l, r)
-			return fl - fr
+			fl, fr, err := i.maybefloats(a.Op, l, r)
+			return fl - fr, err
 		case tokenSlash:
-			fl, fr := i.maybefloats(a.Op, l, r)
-			return fl / fr
+			fl, fr, err := i.maybefloats(a.Op, l, r)
+			return fl / fr, err
 		case tokenStar:
-			fl, fr := i.maybefloats(a.Op, l, r)
-			return fl * fr
+			fl, fr, err := i.maybefloats(a.Op, l, r)
+			return fl * fr, err
 		case tokenPlus:
 			switch le := l.(type) {
 			case float64:
 				if re, k := r.(float64); k {
-					return le + re
+					return le + re, nil
 				}
 				goto fail
 			case []byte:
 				if re, k := r.([]byte); k {
-					return append(le, re...)
+					return append(le, re...), nil
 				}
 				goto fail
 			}
 		fail:
-			i.raise <- &Error{a.Op, "both operands must be either strings or numbers"}
-			return ""
+			return nil, &Error{a.Op, "both operands must be either strings or numbers"}
 		case tokenGreater:
-			fl, fr := i.maybefloats(a.Op, l, r)
-			return fl > fr
+			fl, fr, err := i.maybefloats(a.Op, l, r)
+			return fl > fr, err
 		case tokenGreaterEqual:
-			fl, fr := i.maybefloats(a.Op, l, r)
-			return fl >= fr
+			fl, fr, err := i.maybefloats(a.Op, l, r)
+			return fl >= fr, err
 		case tokenLess:
-			fl, fr := i.maybefloats(a.Op, l, r)
-			return fl < fr
+			fl, fr, err := i.maybefloats(a.Op, l, r)
+			return fl < fr, err
 		case tokenLessEqual:
-			fl, fr := i.maybefloats(a.Op, l, r)
-			return fl <= fr
+			fl, fr, err := i.maybefloats(a.Op, l, r)
+			return fl <= fr, err
 		case tokenEqualEqual:
-			fl, fr := i.maybefloats(a.Op, l, r)
-			return fl == fr
+			fl, fr, err := i.maybefloats(a.Op, l, r)
+			return fl == fr, err
 		case tokenBangEqual:
-			fl, fr := i.maybefloats(a.Op, l, r)
-			return fl != fr
+			fl, fr, err := i.maybefloats(a.Op, l, r)
+			return fl != fr, err
 		}
+	case *Call:
+		callee, err := i.eval(a.Callee)
+		if err != nil {
+			return nil, err
+		}
+
+		args := make([]interface{}, 0, 10)
+		for _, ar := range a.Args {
+			v, err := i.eval(ar)
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, v)
+		}
+		fn, k := callee.(Callable)
+		if !k {
+			return nil, &Error{a.Paren, "can only call functions and classes"}
+		}
+		if len(args) != fn.Arity() {
+			return nil, &Error{a.Paren, fmt.Sprintf("expected %d arguments but got %d", len(args), fn.Arity())}
+		}
+		return fn.Call(i, args)
+
 	case *Variable:
 		v, err := i.env.Get(a.Name)
-		if err != nil {
-			i.raise <- err
-		}
-		return v
+		return v, err
 	case *Assign:
-		value := i.eval(a.Val)
-		i.env.Assign(a.Name, value)
-		return value
+		value, err := i.eval(a.Val)
+		if err != nil {
+			return nil, err
+		}
+		err = i.env.Assign(a.Name, value)
+		return value, err
 	}
 	panic("unreachable")
 }
 
-func (i *Interpreter) executeBlock(stmts []Stmt, env *Environment) {
+func (i *Interpreter) executeBlock(stmts []Stmt, env *Environment) *Error {
 	// i cross my fingers
 	prev := i.env
 	defer func() { i.env = prev }()
 	i.env = env
 	for _, s := range stmts {
-		i.exec(s)
+		err := i.exec(s)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (i *Interpreter) maybefloat(t Token, v interface{}) float64 {
+func (i *Interpreter) maybefloat(t Token, v interface{}) (float64, *Error) {
+	var err *Error
 	f, k := v.(float64)
 	if !k {
-		i.raise <- &Error{t, "operand must be a number"}
+		err = &Error{t, "operand must be a number"}
 	}
-	return f
+	return f, err
 }
 
-func (i *Interpreter) maybefloats(t Token, lv interface{}, rv interface{}) (float64, float64) {
+func (i *Interpreter) maybefloats(t Token, lv interface{}, rv interface{}) (float64, float64, *Error) {
+	var err *Error
 	l, kl := lv.(float64)
 	r, kr := rv.(float64)
 	if !(kl && kr) {
-		i.raise <- &Error{t, "operands must be numbers"}
+		err = &Error{t, "operands must be numbers"}
 	}
-	return l, r
+	return l, r, err
 }
 
 func istruthy(v interface{}) bool {

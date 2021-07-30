@@ -9,10 +9,9 @@ func (f *Func) Call(i *Interpreter, args []interface{}) interface{} {
 	for i := range f.declaration.Params {
 		env.Define(string(f.declaration.Params[i].Lexeme), args[i])
 	}
-	// cause omitting this will cause deadlock
-	body := append(f.declaration.Body, &Return{})
-	go i.executeBlock(body, env)
-	return <-i.ret
+	ni := NewInterpreter(env)
+	ni.Interpret(append(f.declaration.Body, &Return{}))
+	return <-ni.ret
 }
 
 func (f *Func) Arity() int {
